@@ -57,7 +57,7 @@ static const std::unordered_map<std::string, Token::Operator> Operators = {
     { "+"   , Token::Operator::Plus                 },
     { "-"   , Token::Operator::Minus                },
     { "/"   , Token::Operator::Divide               },
-    { "&"   , Token::Operator::Multiply             },
+    { "*"   , Token::Operator::Multiply             },
     { "%"   , Token::Operator::Module               },
     { "**"  , Token::Operator::Power                },
 

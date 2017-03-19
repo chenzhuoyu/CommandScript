@@ -56,6 +56,21 @@ std::shared_ptr<AST::Name> Parser::parseName(void)
 
 /** Expressions **/
 
+std::shared_ptr<AST::Map> Parser::parseMap(void)
+{
+    return std::shared_ptr<AST::Map>();
+}
+
+std::shared_ptr<AST::List> Parser::parseList(void)
+{
+    return std::shared_ptr<AST::List>();
+}
+
+std::shared_ptr<AST::Tuple> Parser::parseTuple(void)
+{
+    return std::shared_ptr<AST::Tuple>();
+}
+
 std::shared_ptr<AST::Unit> Parser::parseUnit(void)
 {
     return std::shared_ptr<AST::Unit>();

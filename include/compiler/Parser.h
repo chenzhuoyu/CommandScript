@@ -32,6 +32,11 @@ private:
 
 /** Expressions **/
 private:
+    std::shared_ptr<AST::Map        > parseMap(void);
+    std::shared_ptr<AST::List       > parseList(void);
+    std::shared_ptr<AST::Tuple      > parseTuple(void);
+
+public:
     std::shared_ptr<AST::Unit       > parseUnit(void);
     std::shared_ptr<AST::Constant   > parseConstant(void);
     std::shared_ptr<AST::Component  > parseComponent(void);

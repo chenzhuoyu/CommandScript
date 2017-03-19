@@ -8,6 +8,11 @@ namespace AST
 {
 /** Language Structures **/
 
+std::string Define::toString(size_t level) const
+{
+    return "";
+}
+
 /** Statements **/
 
 /** Control Flows **/
@@ -22,7 +27,8 @@ std::string Name::toString(size_t level) const
 
 std::string Index::toString(size_t level) const
 {
-    return "";
+    return Strings::repeat("| ", level + 1) + "Index\n"
+         + index->toString(level + 2);
 }
 
 std::string Invoke::toString(size_t level) const
@@ -32,14 +38,56 @@ std::string Invoke::toString(size_t level) const
 
 std::string Attribute::toString(size_t level) const
 {
-    return "";
+    return Strings::repeat("| ", level + 1) + "Attribute\n"
+         + attribute->toString(level + 2);
 }
 
 /** Expressions **/
 
+std::string Map::toString(size_t level) const
+{
+    std::string result = Strings::repeat("| ", level + 1) + Strings::format("Map %d\n", items.size());
+
+    for (const auto &item : items)
+    {
+        result += Strings::repeat("| ", level + 2);
+        result += "Key\n";
+        result += item.first->toString(level + 3);
+        result += Strings::repeat("| ", level + 2);
+        result += "Value\n";
+        result += item.second->toString(level + 3);
+    }
+
+    return result;
+}
+
+std::string List::toString(size_t level) const
+{
+    std::string result = Strings::repeat("| ", level + 1) + Strings::format("List %d\n", items.size());
+    std::for_each(items.begin(), items.end(), [&](const auto &x){ result += x->toString(level + 2); });
+    return result;
+}
+
+std::string Tuple::toString(size_t level) const
+{
+    std::string result = Strings::repeat("| ", level + 1) + Strings::format("Tuple %d\n", items.size());
+    std::for_each(items.begin(), items.end(), [&](const auto &x){ result += x->toString(level + 2); });
+    return result;
+}
+
 std::string Unit::toString(size_t level) const
 {
-    return "";
+    switch (type)
+    {
+        case Type::UnitNested       : return Strings::repeat("| ", level + 1) + Strings::format("Nested %s\n", Token::operatorName(op)) + nested->toString(level + 2);
+        case Type::UnitComponent    : return Strings::repeat("| ", level + 1) + "Component\n" + component->toString(level + 2);
+        case Type::UnitExpression   : return Strings::repeat("| ", level + 1) + "Expression\n" + expression->toString(level + 2);
+
+        case Type::UnitMap          : return Strings::repeat("| ", level + 1) + "Map\n" + map->toString(level + 2);
+        case Type::UnitList         : return Strings::repeat("| ", level + 1) + "List\n" + list->toString(level + 2);
+        case Type::UnitTuple        : return Strings::repeat("| ", level + 1) + "Tuple\n" + tuple->toString(level + 2);
+        case Type::UnitDefine       : return Strings::repeat("| ", level + 1) + "Define\n" + define->toString(level + 2);
+    }
 }
 
 std::string Pair::toString(size_t level) const

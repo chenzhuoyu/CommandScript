@@ -2,6 +2,9 @@
 #define COMMANDSCRIPT_COMPILER_AST_H
 
 #include <memory>
+#include <vector>
+#include <utility>
+
 #include "Strings.h"
 #include "Tokenizer.h"
 #include "NonMovable.h"
@@ -118,7 +121,13 @@ struct Try;
 struct Except;
 struct Finally;
 
-struct Define;
+struct Define final : public Node
+{
+public:
+    std::string toString(size_t level) const override;
+
+};
+
 struct ArgItem;
 struct Argument;
 
@@ -154,6 +163,8 @@ public:
 
 struct Index : public Node
 {
+    std::shared_ptr<Expression> index;
+
 public:
     std::string toString(size_t level) const override;
 
@@ -161,6 +172,8 @@ public:
 
 struct Invoke : public Node
 {
+    std::vector<std::shared_ptr<Expression>> args;
+
 public:
     std::string toString(size_t level) const override;
 
@@ -168,6 +181,8 @@ public:
 
 struct Attribute : public Node
 {
+    std::shared_ptr<Name> attribute;
+
 public:
     std::string toString(size_t level) const override;
 
@@ -175,12 +190,62 @@ public:
 
 /** Expressions **/
 
-struct Map;
-struct List;
-struct Tuple;
+struct Map final : public Node
+{
+    std::vector<std::pair<std::shared_ptr<Expression>, std::shared_ptr<Expression>>> items;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct List final : public Node
+{
+    std::vector<std::shared_ptr<Expression>> items;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Tuple final : public Node
+{
+    std::vector<std::shared_ptr<Expression>> items;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 struct Unit final : public Node
 {
+    enum class Type : int
+    {
+        UnitNested,
+        UnitComponent,
+        UnitExpression,
+
+        UnitMap,
+        UnitList,
+        UnitTuple,
+        UnitDefine,
+    };
+
+public:
+    Type type;
+    Token::Operator op;
+
+public:
+    std::shared_ptr<Unit> nested;
+    std::shared_ptr<Component> component;
+    std::shared_ptr<Expression> expression;
+
+public:
+    std::shared_ptr<Map> map;
+    std::shared_ptr<List> list;
+    std::shared_ptr<Tuple> tuple;
+    std::shared_ptr<Define> define;
+
 public:
     std::string toString(size_t level) const override;
 

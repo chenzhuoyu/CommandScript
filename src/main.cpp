@@ -39,7 +39,7 @@ Command.setHandler((name, argv, message, request) ->
     )source");
     */
 
-    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>("1 + 2"));
+    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>("(1 + 2) * 3"));
 
     std::cout << ps.parse()->toString() << std::endl;
     return 0;
