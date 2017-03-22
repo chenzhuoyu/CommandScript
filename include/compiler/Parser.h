@@ -85,7 +85,22 @@ private:
     std::shared_ptr<AST::Unit       > parseUnit(void);
     std::shared_ptr<AST::Constant   > parseConstant(void);
     std::shared_ptr<AST::Component  > parseComponent(void);
-    std::shared_ptr<AST::Expression > parseExpression(int priority = AST::Expression::Priority::Lowest);
+    std::shared_ptr<AST::Expression > parseExpression(void) { return parseBoolOr(); }
+
+/** Operator Precedence Parsers, from highest precedence to lowest precedence **/
+private:
+    std::shared_ptr<AST::Expression > parsePower        (void);
+    std::shared_ptr<AST::Expression > parseUnary        (void);
+    std::shared_ptr<AST::Expression > parseFactor       (void);
+    std::shared_ptr<AST::Expression > parseTerm         (void);
+    std::shared_ptr<AST::Expression > parseBitShift     (void);
+    std::shared_ptr<AST::Expression > parseBitAnd       (void);
+    std::shared_ptr<AST::Expression > parseBitXor       (void);
+    std::shared_ptr<AST::Expression > parseBitOr        (void);
+    std::shared_ptr<AST::Expression > parseRelations    (void);
+    std::shared_ptr<AST::Expression > parseBoolNot      (void);
+    std::shared_ptr<AST::Expression > parseBoolAnd      (void);
+    std::shared_ptr<AST::Expression > parseBoolOr       (void);
 
 /** parser wrapper method **/
 public:

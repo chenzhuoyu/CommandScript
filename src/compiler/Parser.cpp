@@ -64,44 +64,44 @@ bool Parser::readOperators(Token::Operator &op, const std::unordered_set<Token::
 
 bool Parser::unpackPointerPair(std::shared_ptr<AST::Expression> &expr, std::shared_ptr<AST::Name> &name)
 {
-    while (expr->left->type == AST::Expression::Type::ExpressionExpression)
+    while (expr->first.type == AST::Expression::Type::TermExpression)
     {
         /* a valid arg name cannot have right branch */
-        if (expr->right != nullptr)
+        if (!expr->remains.empty())
             return false;
 
         /* move to next level */
-        expr = expr->left->expression;
+        expr = expr->first.expression;
     }
 
     /* a valid arg name must be a single name expression */
-    if ((expr->right != nullptr) ||
-        (expr->left->component->type != AST::Component::Type::ComponentPair))
+    if (!expr->remains.empty() ||
+        (expr->first.component->type != AST::Component::Type::ComponentPair))
         return false;
 
-    name = expr->left->component->pair->name;
-    expr = expr->left->component->pair->value;
+    name = expr->first.component->pair->name;
+    expr = expr->first.component->pair->value;
     return true;
 }
 
 bool Parser::extractArgumentName(std::shared_ptr<AST::Expression> expr, std::shared_ptr<AST::Name> &name)
 {
-    while (expr->left->type == AST::Expression::Type::ExpressionExpression)
+    while (expr->first.type == AST::Expression::Type::TermExpression)
     {
         /* a valid arg name cannot have right branch */
-        if (expr->right != nullptr)
+        if (!expr->remains.empty())
             return false;
 
         /* move to next level */
-        expr = expr->left->expression;
+        expr = expr->first.expression;
     }
 
     /* a valid arg name must be a single name expression */
-    if ((expr->right != nullptr) ||
-        (expr->left->component->type != AST::Component::Type::ComponentName))
+    if (!expr->remains.empty() ||
+        (expr->first.component->type != AST::Component::Type::ComponentPair))
         return false;
 
-    name = expr->left->component->name;
+    name = expr->first.component->name;
     return true;
 }
 
@@ -150,9 +150,9 @@ std::shared_ptr<AST::For> Parser::parseFor(void)
         if (skipOperator(Token::Operator::Comma))
             result->seq->isSeq = true;
 
-    } while (!isKeyword(Token::Keyword::In));
+    } while (!isOperator(Token::Operator::In));
 
-    expect(Token::Keyword::In);
+    expect(Token::Operator::In);
     result->expr = parseExpression();
     expect(Token::Operator::BracketRight);
     result->body = parseStatement();
@@ -429,7 +429,6 @@ std::shared_ptr<AST::Map> Parser::parseMap(void)
             /* simple pointer-pair item */
             std::shared_ptr<AST::Constant  > val  = AST::Node::create<AST::Constant  >(_tk);
             std::shared_ptr<AST::Component > comp = AST::Node::create<AST::Component >(_tk);
-            std::shared_ptr<AST::Expression> expr = AST::Node::create<AST::Expression>(_tk);
 
             /* build string constant */
             val->type = AST::Constant::Type::ConstantString;
@@ -440,8 +439,7 @@ std::shared_ptr<AST::Map> Parser::parseMap(void)
             comp->constant = std::move(val);
 
             /* wrap component node with expression and add to map items list */
-            expr->left = std::make_shared<AST::Expression::Side>(std::move(comp));
-            result->items.push_back(std::make_pair(std::move(expr), std::move(item)));
+            result->items.push_back(std::make_pair(AST::Node::create<AST::Expression>(_tk, std::move(comp)), std::move(item)));
         }
 
         /* single comma at the end of map is supported */
@@ -476,169 +474,133 @@ std::shared_ptr<AST::List> Parser::parseList(void)
 
 std::shared_ptr<AST::Unit> Parser::parseUnit(void)
 {
-    std::shared_ptr<Token> token = _tk->peek();
+    std::shared_ptr<Token> token = _tk->next();
     std::shared_ptr<AST::Unit> result = AST::Node::create<AST::Unit>(_tk);
 
-    switch (token->type())
+    switch (token->asOperator())
     {
-        case Token::Type::Eof      : throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected \"EOF\"");
-        case Token::Type::Keywords : throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
-
-        case Token::Type::Float:
-        case Token::Type::String:
-        case Token::Type::Integer:
-        case Token::Type::Identifiers:
+        case Token::Operator::BlockLeft:
         {
-            result->type = AST::Unit::Type::UnitComponent;
-            result->component = parseComponent();
+            /* map literal */
+            result->map = parseMap();
+            result->type = AST::Unit::Type::UnitMap;
             break;
         }
 
-        case Token::Type::Operators:
+        case Token::Operator::IndexLeft:
         {
-            /* skip this operator */
-            _tk->next();
+            /* list literal */
+            result->list = parseList();
+            result->type = AST::Unit::Type::UnitList;
+            break;
+        }
 
-            switch (token->asOperator())
+        case Token::Operator::BracketLeft:
+        {
+            /* empty tuple literal or maybe lambda expression with no arguments */
+            if (skipOperator(Token::Operator::BracketRight))
             {
-                case Token::Operator::Plus:
-                case Token::Operator::Minus:
-                case Token::Operator::BitNot:
-                case Token::Operator::BoolNot:
+                if (!skipOperator(Token::Operator::Pointer))
                 {
-                    /* it's unary operators */
-                    result->op = token->asOperator();
-                    result->type = AST::Unit::Type::UnitUnit;
-                    result->unit = parseUnit();
-                    break;
+                    /* empty tuple literal */
+                    result->type = AST::Unit::Type::UnitTuple;
+                    result->tuple = AST::Node::create<AST::Tuple>(_tk);
                 }
-
-                case Token::Operator::BlockLeft:
+                else
                 {
-                    /* map literal */
-                    result->map = parseMap();
-                    result->type = AST::Unit::Type::UnitMap;
-                    break;
+                    /* lambda expression with no arguments */
+                    result->type = AST::Unit::Type::UnitLambda;
+                    result->lambda = AST::Node::create<AST::Define>(_tk);
+                    result->lambda->name = nullptr;
+                    result->lambda->body = parseStatement();
                 }
+            }
+            else
+            {
+                /* first argument, first element, or maybe nested expression, they looks like the same at this point */
+                std::shared_ptr<AST::Name> name;
+                std::shared_ptr<AST::Expression> item = parseExpression();
 
-                case Token::Operator::IndexLeft:
+                if (skipOperator(Token::Operator::BracketRight))
                 {
-                    /* list literal */
-                    result->list = parseList();
-                    result->type = AST::Unit::Type::UnitList;
-                    break;
-                }
-
-                case Token::Operator::BracketLeft:
-                {
-                    /* empty tuple literal or maybe lambda expression with no arguments */
-                    if (skipOperator(Token::Operator::BracketRight))
+                    /* it's a lambda iff it follows with pointer operator and the first expression is a valid arg name */
+                    if (!skipOperator(Token::Operator::Pointer) || !extractArgumentName(item, name))
                     {
-                        if (!skipOperator(Token::Operator::Pointer))
-                        {
-                            /* empty tuple literal */
-                            result->type = AST::Unit::Type::UnitTuple;
-                            result->tuple = AST::Node::create<AST::Tuple>(_tk);
-                        }
-                        else
-                        {
-                            /* lambda expression with no arguments */
-                            result->type = AST::Unit::Type::UnitDefine;
-                            result->define = AST::Node::create<AST::Define>(_tk);
-                            result->define->name = nullptr;
-                            result->define->body = parseStatement();
-                        }
+                        result->type = AST::Unit::Type::UnitExpression;
+                        result->expression = item;
                     }
                     else
                     {
-                        /* first argument, first element, or maybe nested expression, they looks like the same at this point */
-                        std::shared_ptr<AST::Name> name;
-                        std::shared_ptr<AST::Expression> item = parseExpression();
+                        result->type = AST::Unit::Type::UnitLambda;
+                        result->lambda = AST::Node::create<AST::Define>(_tk);
+                        result->lambda->name = nullptr;
+                        result->lambda->body = parseStatement();
+                        result->lambda->args.push_back(name);
+                    }
+                }
+                else
+                {
+                    /* tuple literals, or maybe lambda expression */
+                    bool maybeLambda = true;
+                    std::vector<std::shared_ptr<AST::Expression>> items({ std::move(item) });
 
-                        if (skipOperator(Token::Operator::BracketRight))
+                    while (skipOperator(Token::Operator::Comma))
+                    {
+                        /* found a single comma, that must be a tuple literal */
+                        if (isOperator(Token::Operator::BracketRight))
                         {
-                            /* it's a lambda iff it follows with pointer operator and the first expression is a valid arg name */
-                            if (!skipOperator(Token::Operator::Pointer) || !extractArgumentName(item, name))
-                            {
-                                result->type = AST::Unit::Type::UnitExpression;
-                                result->expression = item;
-                            }
-                            else
-                            {
-                                result->type = AST::Unit::Type::UnitDefine;
-                                result->define = AST::Node::create<AST::Define>(_tk);
-                                result->define->name = nullptr;
-                                result->define->body = parseStatement();
-                                result->define->args.push_back(name);
-                            }
+                            maybeLambda = false;
+                            break;
                         }
-                        else
+
+                        /* next item */
+                        items.push_back(parseExpression());
+                    }
+
+                    /* must ends with right bracket */
+                    expect(Token::Operator::BracketRight);
+
+                    /* check for lambda possibility */
+                    if (maybeLambda)
+                    {
+                        bool isLambda = true;
+                        std::shared_ptr<AST::Define> define = AST::Node::create<AST::Define>(_tk);
+
+                        for (const auto &arg : items)
                         {
-                            /* tuple literals, or maybe lambda expression */
-                            bool maybeLambda = true;
-                            std::vector<std::shared_ptr<AST::Expression>> items({ std::move(item) });
-
-                            while (skipOperator(Token::Operator::Comma))
+                            /* convert to arg name */
+                            if (!extractArgumentName(arg, name))
                             {
-                                /* found a single comma, that must be a tuple literal */
-                                if (isOperator(Token::Operator::BracketRight))
-                                {
-                                    maybeLambda = false;
-                                    break;
-                                }
-
-                                /* next item */
-                                items.push_back(parseExpression());
+                                isLambda = false;
+                                break;
                             }
 
-                            /* must ends with right bracket */
-                            expect(Token::Operator::BracketRight);
+                            /* add to argument list */
+                            define->args.push_back(name);
+                        }
 
-                            /* check for lambda possibility */
-                            if (maybeLambda)
-                            {
-                                bool isLambda = true;
-                                std::shared_ptr<AST::Define> define = AST::Node::create<AST::Define>(_tk);
-
-                                for (const auto &arg : items)
-                                {
-                                    /* convert to arg name */
-                                    if (!extractArgumentName(arg, name))
-                                    {
-                                        isLambda = false;
-                                        break;
-                                    }
-
-                                    /* add to argument list */
-                                    define->args.push_back(name);
-                                }
-
-                                if (isLambda)
-                                {
-                                    define->name = nullptr;
-                                    define->body = parseStatement();
-                                    result->type = AST::Unit::Type::UnitDefine;
-                                    result->define = std::move(define);
-                                    break;
-                                }
-                            }
-
-                            /* it's definately a tuple literal */
-                            result->type = AST::Unit::Type::UnitTuple;
-                            result->tuple = AST::Node::create<AST::Tuple>(_tk);
-                            result->tuple->items = std::move(items);
+                        if (isLambda)
+                        {
+                            define->name = nullptr;
+                            define->body = parseStatement();
+                            result->type = AST::Unit::Type::UnitLambda;
+                            result->lambda = std::move(define);
+                            break;
                         }
                     }
 
-                    break;
+                    /* it's definately a tuple literal */
+                    result->type = AST::Unit::Type::UnitTuple;
+                    result->tuple = AST::Node::create<AST::Tuple>(_tk);
+                    result->tuple->items = std::move(items);
                 }
-
-                default:
-                    throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
             }
 
             break;
         }
+
+        default:
+            throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
     }
 
     return result;
@@ -687,7 +649,8 @@ std::shared_ptr<AST::Component> Parser::parseComponent(void)
     switch (token->type())
     {
         case Token::Type::Eof:
-            throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected \"EOF\"");
+        case Token::Type::Keywords:
+            throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
 
         case Token::Type::Float:
         case Token::Type::String:
@@ -698,7 +661,6 @@ std::shared_ptr<AST::Component> Parser::parseComponent(void)
             break;
         }
 
-        case Token::Type::Keywords:
         case Token::Type::Operators:
         {
             result->type = AST::Component::Type::ComponentUnit;
@@ -795,72 +757,179 @@ std::shared_ptr<AST::Component> Parser::parseComponent(void)
     return result;
 }
 
-std::shared_ptr<AST::Expression> Parser::parseExpression(int priority)
+std::shared_ptr<AST::Expression> Parser::parsePower(void)
 {
-    /* operator set for each expression priority */
-    static const std::unordered_set<Token::Operator> OpSets[AST::Expression::Priority::Lowest + 1] = {{
-        /* Power */
-        Token::Operator::Power,
-    }, {
-        /* Factor */
-        Token::Operator::Divide,
-        Token::Operator::Module,
-        Token::Operator::Multiply,
-    }, {
-        /* Term */
-        Token::Operator::Plus,
-        Token::Operator::Minus,
-    }, {
-        /* Bitwise */
-        Token::Operator::BitOr,
-        Token::Operator::BitAnd,
-        Token::Operator::BitXor,
-        Token::Operator::ShiftLeft,
-        Token::Operator::ShiftRight,
-    }, {
-        /* Relations */
-        Token::Operator::Leq,
-        Token::Operator::Geq,
-        Token::Operator::Equ,
-        Token::Operator::Neq,
-        Token::Operator::Less,
-        Token::Operator::Greater,
-    }, {
-        /* Expr */
-        Token::Operator::BoolOr,
-        Token::Operator::BoolAnd,
-    }};
-
+    /* build result expression */
     Token::Operator op;
-    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk);
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseComponent());
 
-    if (priority == AST::Expression::Priority::Highest)
-        result->left = std::make_shared<AST::Expression::Side>(parseComponent());
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::Power }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseComponent())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseUnary(void)
+{
+    /* the unary operator */
+    Token::Operator op;
+
+    /* recursively parsing unary operators */
+    if (!readOperators(op, { Token::Operator::Plus, Token::Operator::Minus, Token::Operator::BitNot }))
+        return parsePower();
     else
-        result->left = std::make_shared<AST::Expression::Side>(parseExpression(priority - 1));
+        return AST::Node::create<AST::Expression>(_tk, op, parseUnary());
+}
 
-    if (readOperators(result->op, OpSets[priority]))
+std::shared_ptr<AST::Expression> Parser::parseFactor(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseUnary());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::Multiply, Token::Operator::Divide, Token::Operator::Module }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseUnary())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseTerm(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseFactor());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::Plus, Token::Operator::Minus }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseFactor())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBitShift(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseTerm());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::ShiftLeft, Token::Operator::ShiftRight }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseTerm())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBitAnd(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBitShift());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::BitAnd }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBitShift())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBitXor(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBitAnd());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::BitXor }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBitAnd())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBitOr(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBitXor());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::BitOr }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBitXor())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseRelations(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBitXor());
+
+    /* operator chaining */
+    for (;;)
     {
-        if (priority == AST::Expression::Priority::Highest)
-            result->right = std::make_shared<AST::Expression::Side>(parseComponent());
-        else
-            result->right = std::make_shared<AST::Expression::Side>(parseExpression(priority - 1));
-
-        while (readOperators(op, OpSets[priority]))
+        if (skipOperator(Token::Operator::BoolNot))
         {
-            /* temporary node, for chainning expressions */
-            std::shared_ptr<AST::Expression> node = AST::Node::create<AST::Expression>(_tk);
+            expect(Token::Operator::In);
+            result->remains.push_back(std::make_pair(Token::Operator::NotIn, AST::Node::create<AST::Expression>(_tk, parseBitXor())));
+        }
+        else
+        {
+            if (!readOperators(op, {
+                Token::Operator::Is,
+                Token::Operator::In,
+                Token::Operator::Leq,
+                Token::Operator::Geq,
+                Token::Operator::Neq,
+                Token::Operator::Equ,
+                Token::Operator::Less,
+                Token::Operator::Greater }))
+                break;
 
-            if (priority == AST::Expression::Priority::Highest)
-                node->right = std::make_shared<AST::Expression::Side>(parseComponent());
+            if ((op != Token::Operator::Is) || !skipOperator(Token::Operator::BoolNot))
+                result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBitXor())));
             else
-                node->right = std::make_shared<AST::Expression::Side>(parseExpression(priority - 1));
-
-            /* chain AST node */
-            node->left = std::make_shared<AST::Expression::Side>(result);
-            result = std::move(node);
+                result->remains.push_back(std::make_pair(Token::Operator::IsNot, AST::Node::create<AST::Expression>(_tk, parseBitXor())));
         }
     }
+
+    /* relation operators need to be treated seperately, so mark here */
+    result->isRelations = true;
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBoolNot(void)
+{
+    /* recursively parsing `BoolNot` operator */
+    if (!skipOperator(Token::Operator::BoolNot))
+        return parseRelations();
+    else
+        return AST::Node::create<AST::Expression>(_tk, Token::Operator::BoolNot, parseBoolNot());
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBoolAnd(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBoolNot());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::BoolAnd }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBoolNot())));
+
+    return result;
+}
+
+std::shared_ptr<AST::Expression> Parser::parseBoolOr(void)
+{
+    /* build result expression */
+    Token::Operator op;
+    std::shared_ptr<AST::Expression> result = AST::Node::create<AST::Expression>(_tk, parseBoolAnd());
+
+    /* operator chaining */
+    while (readOperators(op, { Token::Operator::BoolOr }))
+        result->remains.push_back(std::make_pair(op, AST::Node::create<AST::Expression>(_tk, parseBoolAnd())));
 
     return result;
 }
@@ -870,7 +939,7 @@ std::shared_ptr<AST::Expression> Parser::parseExpression(int priority)
 std::shared_ptr<AST::Node> Parser::parse(void)
 {
     // TODO: real parsing
-    return parseImport();
+    return parseExpression();
 }
 }
 }

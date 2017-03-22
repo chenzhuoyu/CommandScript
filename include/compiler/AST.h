@@ -313,30 +313,22 @@ struct Unit final : public Node
 {
     enum class Type : int
     {
-        UnitUnit,
-        UnitComponent,
-        UnitExpression,
-
         UnitMap,
         UnitList,
         UnitTuple,
-        UnitDefine,
+        UnitLambda,
+        UnitExpression,
     };
 
 public:
     Type type;
-    Token::Operator op;
 
 public:
-    std::shared_ptr<Unit      > unit;
-    std::shared_ptr<Component > component;
+    std::shared_ptr<Map       > map;
+    std::shared_ptr<List      > list;
+    std::shared_ptr<Tuple     > tuple;
+    std::shared_ptr<Define    > lambda;
     std::shared_ptr<Expression> expression;
-
-public:
-    std::shared_ptr<Map   > map;
-    std::shared_ptr<List  > list;
-    std::shared_ptr<Tuple > tuple;
-    std::shared_ptr<Define> define;
 
 public:
     std::string toString(size_t level) const override;
@@ -429,46 +421,39 @@ struct Expression final : public Node
 {
     enum class Type : int
     {
-        ExpressionComponent,
-        ExpressionExpression,
+        TermComponent,
+        TermExpression,
     };
 
 public:
-    struct Side
+    struct Term
     {
         Type type;
         std::shared_ptr<Component > component;
         std::shared_ptr<Expression> expression;
 
     public:
-        Side(const std::shared_ptr<Component > &value) : type(Type::ExpressionComponent ), component (value) {}
-        Side(const std::shared_ptr<Expression> &value) : type(Type::ExpressionExpression), expression(value) {}
+        Term(const std::shared_ptr<Component > &value) : type(Type::TermComponent ), component (value) {}
+        Term(const std::shared_ptr<Expression> &value) : type(Type::TermExpression), expression(value) {}
 
     };
 
 public:
-    struct Priority
-    {
-        enum
-        {
-            Power,
-            Factor,
-            Term,
-            Bitwise,
-            Relation,
-            Expr,
-
-            Lowest  = Expr,
-            Highest = Power,
-        };
-    };
-
-public:
+    Term first;
     Token::Operator op;
+    std::vector<std::pair<Token::Operator, Term>> remains;
 
 public:
-    std::shared_ptr<Side> left;
-    std::shared_ptr<Side> right;
+    bool isUnary;
+    bool isRelations;
+
+public:
+    explicit Expression(const std::shared_ptr<Component > &value) : first(value), isUnary(false), isRelations(false) {}
+    explicit Expression(const std::shared_ptr<Expression> &value) : first(value), isUnary(false), isRelations(false) {}
+
+public:
+    explicit Expression(Token::Operator op, const std::shared_ptr<Component > &value) : first(value), op(op), isUnary(true), isRelations(false) {}
+    explicit Expression(Token::Operator op, const std::shared_ptr<Expression> &value) : first(value), op(op), isUnary(true), isRelations(false) {}
 
 public:
     std::string toString(size_t level) const override;

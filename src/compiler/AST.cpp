@@ -181,18 +181,10 @@ std::string Unit::toString(size_t level) const
 {
     switch (type)
     {
-        case Type::UnitUnit:
-        {
-            return Strings::repeat("| ", level)
-                 + Strings::format("Unit %s\n", Token::operatorName(op))
-                 + unit->toString(level + 1);
-        }
-
         case Type::UnitMap        : return Strings::repeat("| ", level) + "Map\n" + map->toString(level + 1);
         case Type::UnitList       : return Strings::repeat("| ", level) + "List\n" + list->toString(level + 1);
         case Type::UnitTuple      : return Strings::repeat("| ", level) + "Tuple\n" + tuple->toString(level + 1);
-        case Type::UnitDefine     : return Strings::repeat("| ", level) + "Define\n" + define->toString(level + 1);
-        case Type::UnitComponent  : return Strings::repeat("| ", level) + "Component\n" + component->toString(level + 1);
+        case Type::UnitLambda     : return Strings::repeat("| ", level) + "Lambda\n" + lambda->toString(level + 1);
         case Type::UnitExpression : return Strings::repeat("| ", level) + "Expression\n" + expression->toString(level + 1);
     }
 }
@@ -244,40 +236,25 @@ std::string Component::toString(size_t level) const
 
 std::string Expression::toString(size_t level) const
 {
-    std::string result = (right == nullptr)
-        ? (Strings::repeat("| ", level) + "Expression\n")
-        : (Strings::repeat("| ", level) + Strings::format("Expression \"%s\"\n", Token::operatorName(op)));
+    std::string result = Strings::repeat("| ", level) + (!isUnary
+        ? Strings::format("%s Chain %d\n", (isRelations ? "Relation" : "Expression"), remains.size() + 1)
+        : Strings::format("%s Operator %s\n", (isRelations ? "Relation" : "Expression"), Token::operatorName(op)));
 
-    switch (left->type)
+    switch (first.type)
     {
-        case Type::ExpressionComponent:
-        {
-            result += Strings::repeat("| ", level + 1) + "Left Component\n" + left->component->toString(level + 2);
-            break;
-        }
-
-        case Type::ExpressionExpression:
-        {
-            result += Strings::repeat("| ", level + 1) + "Left Expression\n" + left->expression->toString(level + 2);
-            break;
-        }
+        case Type::TermComponent  : result += Strings::repeat("| ", level + 1) + "Term\n" + first.component->toString(level + 2); break;
+        case Type::TermExpression : result += Strings::repeat("| ", level + 1) + "Expr\n" + first.expression->toString(level + 2); break;
     }
 
-    if (right != nullptr)
+    for (const auto &term : remains)
     {
-        switch (right->type)
-        {
-            case Type::ExpressionComponent:
-            {
-                result += Strings::repeat("| ", level + 1) + "Right Component\n" + right->component->toString(level + 2);
-                break;
-            }
+        result += Strings::repeat("| ", level + 1);
+        result += Strings::format("Operator %s\n", Token::operatorName(term.first));
 
-            case Type::ExpressionExpression:
-            {
-                result += Strings::repeat("| ", level + 1) + "Right Expression\n" + right->expression->toString(level + 2);
-                break;
-            }
+        switch (term.second.type)
+        {
+            case Type::TermComponent  : result += Strings::repeat("| ", level + 1) + "Term\n" + term.second.component->toString(level + 2); break;
+            case Type::TermExpression : result += Strings::repeat("| ", level + 1) + "Expr\n" + term.second.expression->toString(level + 2); break;
         }
     }
 

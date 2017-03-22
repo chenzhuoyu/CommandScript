@@ -51,7 +51,6 @@ public:
         Raise,
 
         As,
-        In,
         Def,
         Delete,
         Import,
@@ -110,9 +109,13 @@ public:
         InplaceShiftLeft,
         InplaceShiftRight,
 
+        Is,
+        In,
+        IsNot,
+        NotIn,
+        Range,
         Assign,
         Pointer,
-        Range,
         Decorator,
     };
 
@@ -294,7 +297,6 @@ public:
             case Keyword::Raise     : return "raise";
 
             case Keyword::As        : return "as";
-            case Keyword::In        : return "in";
             case Keyword::Def       : return "def";
             case Keyword::Delete    : return "delete";
             case Keyword::Import    : return "import";
@@ -357,9 +359,13 @@ public:
             case Operator::InplaceShiftLeft     : return "<<=";
             case Operator::InplaceShiftRight    : return ">>=";
 
+            case Operator::Is                   : return "is";
+            case Operator::In                   : return "in";
+            case Operator::IsNot                : return "is-not";
+            case Operator::NotIn                : return "not-in";
+            case Operator::Range                : return "..";
             case Operator::Assign               : return "=";
             case Operator::Pointer              : return "->";
-            case Operator::Range                : return "..";
             case Operator::Decorator            : return "@";
         }
     }

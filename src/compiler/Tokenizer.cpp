@@ -24,7 +24,6 @@ static const std::unordered_map<std::string, Token::Keyword> Keywords = {
     { "raise"   , Token::Keyword::Raise     },
 
     { "as"      , Token::Keyword::As        },
-    { "in"      , Token::Keyword::In        },
     { "def"     , Token::Keyword::Def       },
     { "delete"  , Token::Keyword::Delete    },
     { "import"  , Token::Keyword::Import    },
@@ -82,9 +81,13 @@ static const std::unordered_map<std::string, Token::Operator> Operators = {
     { "<<=" , Token::Operator::InplaceShiftLeft     },
     { ">>=" , Token::Operator::InplaceShiftRight    },
 
+    { "is"  , Token::Operator::Is                   },
+    { "in"  , Token::Operator::In                   },
+/*  {  ??   , Token::Operator::IsNot                },  "is-not" operator is a semantic operator, it is emitted by `Parser` */
+/*  {  ??   , Token::Operator::NotIn                },  "not-in" operator is a semantic operator, it is emitted by `Parser` */
+    { ".."  , Token::Operator::Range                },
     { "="   , Token::Operator::Assign               },
     { "->"  , Token::Operator::Pointer              },
-    { ".."  , Token::Operator::Range                },
     { "@"   , Token::Operator::Decorator            },
 };
 

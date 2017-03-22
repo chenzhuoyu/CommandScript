@@ -40,7 +40,7 @@ Command.setHandler((name, argv, message, request) ->
     */
 
     CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>(R"src(
-        import sdjfjs
+        10 < ~x in (20, 30, 40)
     )src"));
 
     std::cout << ps.parse()->toString() << std::endl;
