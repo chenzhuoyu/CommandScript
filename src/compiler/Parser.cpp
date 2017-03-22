@@ -19,9 +19,24 @@ void Parser::expect(Token::Operator expect)
         throw Exception::SyntaxError(_tk->row(), _tk->col(), Strings::format("Operator \"%s\" expected", Token::operatorName(expect)));
 }
 
+bool Parser::isKeyword(Token::Keyword expected)
+{
+    std::shared_ptr<Token> token = _tk->peek();
+    return token->is<Token::Type::Keywords>() && (token->asKeyword() == expected);
+}
+
+bool Parser::skipKeyword(Token::Keyword expected)
+{
+    if (!isKeyword(expected))
+        return false;
+
+    _tk->next();
+    return true;
+}
+
 bool Parser::isOperator(Token::Operator expected)
 {
-    Token::Ptr token = _tk->peek();
+    std::shared_ptr<Token> token = _tk->peek();
     return token->is<Token::Type::Operators>() && (token->asOperator() == expected);
 }
 
@@ -37,7 +52,7 @@ bool Parser::skipOperator(Token::Operator expected)
 bool Parser::readOperators(Token::Operator &op, const std::unordered_set<Token::Operator> &operators)
 {
     /* peek next token */
-    Token::Ptr token = _tk->peek();
+    std::shared_ptr<Token> token = _tk->peek();
 
     if (!token->is<Token::Type::Operators>() ||
         (operators.find(token->asOperator()) == operators.end()))
@@ -92,14 +107,263 @@ bool Parser::extractArgumentName(std::shared_ptr<AST::Expression> expr, std::sha
 
 /** Language Structures **/
 
+std::shared_ptr<AST::If> Parser::parseIf(void)
+{
+    expect(Token::Keyword::If);
+    std::shared_ptr<AST::If> result = AST::Node::create<AST::If>(_tk);
+
+    expect(Token::Operator::BracketLeft);
+    result->expr = parseExpression();
+    expect(Token::Operator::BracketRight);
+    result->positive = parseStatement();
+
+    /* may have `else` section */
+    if (skipKeyword(Token::Keyword::Else))
+        result->negative = parseStatement();
+
+    return result;
+}
+
+std::shared_ptr<AST::For> Parser::parseFor(void)
+{
+    expect(Token::Keyword::For);
+    std::shared_ptr<AST::For> result = AST::Node::create<AST::For>(_tk);
+
+    expect(Token::Operator::BracketLeft);
+    result->seq = AST::Node::create<AST::Sequence>(_tk);
+    result->seq->isSeq = false;
+
+    do
+    {
+        if (!skipOperator(Token::Operator::BracketLeft))
+        {
+            /* parse selectively add to items list */
+            result->seq->items.push_back(parseSubSequence());
+        }
+        else
+        {
+            result->seq->isSeq = true;
+            result->seq->items.push_back(parseSequence());
+            expect(Token::Operator::BracketRight);
+        }
+
+        if (skipOperator(Token::Operator::Comma))
+            result->seq->isSeq = true;
+
+    } while (!isKeyword(Token::Keyword::In));
+
+    expect(Token::Keyword::In);
+    result->expr = parseExpression();
+    expect(Token::Operator::BracketRight);
+    result->body = parseStatement();
+    return result;
+}
+
+std::shared_ptr<AST::While> Parser::parseWhile(void)
+{
+    expect(Token::Keyword::While);
+    std::shared_ptr<AST::While> result = AST::Node::create<AST::While>(_tk);
+
+    expect(Token::Operator::BracketLeft);
+    result->expr = parseExpression();
+    expect(Token::Operator::BracketRight);
+    result->body = parseStatement();
+    return result;
+}
+
+std::shared_ptr<AST::Define> Parser::parseDefine(void)
+{
+    expect(Token::Keyword::Def);
+    std::shared_ptr<AST::Define> result = AST::Node::create<AST::Define>(_tk);
+
+    result->name = parseName();
+    expect(Token::Operator::BracketLeft);
+
+    if (!isOperator(Token::Operator::BracketRight))
+    {
+        do result->args.push_back(parseName());
+        while (skipOperator(Token::Operator::Comma));
+    }
+
+    expect(Token::Operator::BracketRight);
+    result->body = parseStatement();
+    return result;
+}
+
+std::shared_ptr<AST::Import> Parser::parseImport(void)
+{
+    expect(Token::Keyword::Import);
+    std::shared_ptr<AST::Import> result = AST::Node::create<AST::Import>(_tk);
+
+    do result->names.push_back(parseName());
+    while (skipOperator(Token::Operator::Point));
+    return result;
+}
+
 /** Statements **/
+
+std::shared_ptr<AST::Sequence> Parser::parseSequence(void)
+{
+    /* create new seqnece */
+    std::shared_ptr<AST::Sequence> result = AST::Node::create<AST::Sequence>(_tk);
+
+    do
+    {
+        /* check for nested sequence */
+        if (!skipOperator(Token::Operator::BracketLeft))
+        {
+            /* parse selectively add to items list */
+            result->items.push_back(parseSubSequence());
+        }
+        else
+        {
+            result->items.push_back(parseSequence());
+            expect(Token::Operator::BracketRight);
+        }
+
+        /* continues iff the next token is a comma */
+        if (!skipOperator(Token::Operator::Comma))
+        {
+            if (result->items.size() > 1)
+                break;
+            else
+                throw Exception::SyntaxError(_tk->row(), _tk->col(), "Single-item sequences must have an extra comma");
+        }
+    } while (!isOperator(Token::Operator::BracketRight));
+
+    /* this result is definately a sequence */
+    result->isSeq = true;
+    return result;
+}
+
+std::shared_ptr<AST::Component> Parser::parseSubSequence(void)
+{
+    /* parse next component item */
+    std::shared_ptr<AST::Component> result = parseComponent();
+
+    /* component must be mutable */
+    if (result->modifiers.empty())
+    {
+        /* only names are mutable */
+        if (result->type != AST::Component::Type::ComponentName)
+            throw Exception::SyntaxError(_tk->row(), _tk->col(), "Component must be mutable");
+    }
+    else
+    {
+        /* invoke modifier is not mutable */
+        if (result->modifiers.back().type == AST::Component::ModType::ModifierInvoke)
+            throw Exception::SyntaxError(_tk->row(), _tk->col(), "Component must be mutable");
+    }
+
+    return result;
+}
+
+std::shared_ptr<AST::Tuple> Parser::parseTupleExpression(bool &isSeq)
+{
+    /* create tuple result */
+    std::shared_ptr<AST::Tuple> result = AST::Node::create<AST::Tuple>(_tk);
+
+    /* we assume it's not sequence at start */
+    for (isSeq = false;;)
+    {
+        /* read next expression */
+        result->items.push_back(parseExpression());
+
+        /* read next token */
+        bool isEnd = false;
+        std::shared_ptr<Token> token = _tk->peekOrLine();
+
+        /* once it encountered a comma, it definately a sequence */
+        if (token->is<Token::Type::Operators>() &&
+            token->asOperator() == Token::Operator::Comma)
+        {
+            /* skip this comma */
+            _tk->nextOrLine();
+
+            /* and peek next token */
+            isEnd = true;
+            isSeq = true;
+            token = _tk->peekOrLine();
+        }
+
+        /* stop sequencing when encounters "\n", ";" or `EOF` */
+        switch (token->type())
+        {
+            case Token::Type::Eof:
+                return result;
+
+            case Token::Type::Keywords:
+                throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
+
+            case Token::Type::Operators:
+            {
+                switch (token->asOperator())
+                {
+                    case Token::Operator::NewLine:
+                    case Token::Operator::Semicolon:
+                    {
+                        _tk->nextOrLine();
+                        return result;
+                    }
+
+                    default:
+                        break;
+                }
+
+                break;
+            }
+
+            default:
+            {
+                if (isEnd)
+                    break;
+                else
+                    throw Exception::SyntaxError(_tk->row(), _tk->col(), "Unexpected token " + token->toString());
+            }
+        }
+    }
+}
+
+std::shared_ptr<AST::Compond> Parser::parseCompond(void)
+{
+    expect(Token::Operator::BlockLeft);
+    std::shared_ptr<AST::Compond> result = AST::Node::create<AST::Compond>(_tk);
+
+    while (!isOperator(Token::Operator::BlockRight))
+        result->statements.push_back(parseStatement());
+
+    expect(Token::Operator::BlockRight);
+    return std::shared_ptr<AST::Compond>();
+}
 
 std::shared_ptr<AST::Statement> Parser::parseStatement(void)
 {
+    // TODO: actual parse statement
     return std::shared_ptr<AST::Statement>();
 }
 
 /** Control Flows **/
+
+std::shared_ptr<AST::Break> Parser::parseBreak(void)
+{
+    expect(Token::Keyword::Break);
+    return AST::Node::create<AST::Break>(_tk);
+}
+
+std::shared_ptr<AST::Return> Parser::parseReturn(void)
+{
+    expect(Token::Keyword::Return);
+    std::shared_ptr<AST::Return> result = AST::Node::create<AST::Return>(_tk);
+
+    result->tuple = parseTupleExpression(result->isSeq);
+    return result;
+}
+
+std::shared_ptr<AST::Continue> Parser::parseContinue(void)
+{
+    expect(Token::Keyword::Continue);
+    return AST::Node::create<AST::Continue>(_tk);
+}
 
 /** Expression Components **/
 
@@ -212,7 +476,7 @@ std::shared_ptr<AST::List> Parser::parseList(void)
 
 std::shared_ptr<AST::Unit> Parser::parseUnit(void)
 {
-    Token::Ptr token = _tk->peek();
+    std::shared_ptr<Token> token = _tk->peek();
     std::shared_ptr<AST::Unit> result = AST::Node::create<AST::Unit>(_tk);
 
     switch (token->type())
@@ -382,7 +646,7 @@ std::shared_ptr<AST::Unit> Parser::parseUnit(void)
 
 std::shared_ptr<AST::Constant> Parser::parseConstant(void)
 {
-    Token::Ptr token = _tk->next();
+    std::shared_ptr<Token> token = _tk->next();
     std::shared_ptr<AST::Constant> result = AST::Node::create<AST::Constant>(_tk);
 
     switch (token->type())
@@ -417,7 +681,7 @@ std::shared_ptr<AST::Constant> Parser::parseConstant(void)
 
 std::shared_ptr<AST::Component> Parser::parseComponent(void)
 {
-    Token::Ptr token = _tk->peek();
+    std::shared_ptr<Token> token = _tk->peek();
     std::shared_ptr<AST::Component> result = AST::Node::create<AST::Component>(_tk);
 
     switch (token->type())
@@ -490,6 +754,9 @@ std::shared_ptr<AST::Component> Parser::parseComponent(void)
             /* new-line encountered */
             case Token::Operator::NewLine:
             {
+                /* save tokenizer state */
+                _tk->pushState();
+
                 /* skip all remaining new-lines */
                 while (token->is<Token::Type::Operators>() &&
                       (token->asOperator() == Token::Operator::NewLine))
@@ -500,14 +767,21 @@ std::shared_ptr<AST::Component> Parser::parseComponent(void)
 
                 /* check for eof */
                 if (token->is<Token::Type::Eof>())
+                {
+                    _tk->popState();
                     return result;
+                }
 
                 /* only attribute access can wrap to next line */
                 if (!token->is<Token::Type::Operators>() ||
                     (token->asOperator() != Token::Operator::Point))
+                {
+                    _tk->popState();
                     return result;
+                }
 
                 /* add an attribute modifier */
+                _tk->killState();
                 result->modifiers.push_back(parseAttribute());
                 break;
             }
@@ -596,7 +870,7 @@ std::shared_ptr<AST::Expression> Parser::parseExpression(int priority)
 std::shared_ptr<AST::Node> Parser::parse(void)
 {
     // TODO: real parsing
-    return parseExpression();
+    return parseImport();
 }
 }
 }

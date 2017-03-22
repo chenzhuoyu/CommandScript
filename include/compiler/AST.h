@@ -53,6 +53,8 @@ public:
 struct If;
 struct For;
 struct While;
+struct Define;
+struct Import;
 
 struct Switch;
 struct Case;
@@ -62,19 +64,12 @@ struct Try;
 struct Except;
 struct Finally;
 
-struct Define;
-struct ArgItem;
-struct Argument;
-
 /** Statements **/
 
 struct Assign;
 struct Delete;
 struct Inplace;
-
-struct Item;
 struct Sequence;
-struct Parallels;
 
 struct Compond;
 struct Statement;
@@ -100,7 +95,6 @@ struct Tuple;
 
 struct Unit;
 struct Pair;
-struct Range;
 struct Constant;
 struct Component;
 struct Expression;
@@ -109,17 +103,39 @@ struct Expression;
 
 /** Language Structures **/
 
-struct If;
-struct For;
-struct While;
+struct If final : public Node
+{
+    std::shared_ptr<Expression> expr;
 
-struct Switch;
-struct Case;
-struct Default;
+public:
+    std::shared_ptr<Statement> positive;
+    std::shared_ptr<Statement> negative;
 
-struct Try;
-struct Except;
-struct Finally;
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct For final : public Node
+{
+    std::shared_ptr<Sequence> seq;
+    std::shared_ptr<Statement> body;
+    std::shared_ptr<Expression> expr;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct While final : public Node
+{
+    std::shared_ptr<Statement> body;
+    std::shared_ptr<Expression> expr;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 struct Define final : public Node
 {
@@ -134,8 +150,22 @@ public:
 
 };
 
-struct ArgItem;
-struct Argument;
+struct Import final : public Node
+{
+    std::vector<std::shared_ptr<Name>> names;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Switch;
+struct Case;
+struct Default;
+
+struct Try;
+struct Except;
+struct Finally;
 
 /** Statements **/
 
@@ -143,11 +173,45 @@ struct Assign;
 struct Delete;
 struct Inplace;
 
-struct Item;
-struct Sequence;
-struct Parallels;
+struct Sequence final : public Node
+{
+    enum class Type : int
+    {
+        SequenceSequence,
+        SequenceComponent,
+    };
 
-struct Compond;
+public:
+    struct Item
+    {
+        Type type;
+        std::shared_ptr<Sequence > sequence;
+        std::shared_ptr<Component> component;
+
+    public:
+        Item(const std::shared_ptr<Sequence > &value) : type(Type::SequenceSequence ), sequence (value) {}
+        Item(const std::shared_ptr<Component> &value) : type(Type::SequenceComponent), component(value) {}
+
+    };
+
+public:
+    bool isSeq;
+    std::vector<Item> items;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Compond final : public Node
+{
+    std::vector<std::shared_ptr<Statement>> statements;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
 struct Statement final : public Node
 {
 
@@ -158,9 +222,25 @@ public:
 
 /** Control Flows **/
 
-struct Break;
-struct Return;
-struct Continue;
+struct Break final : public Node
+{
+    std::string toString(size_t level) const override { return Strings::repeat("| ", level) + "Break\n"; }
+};
+
+struct Return final : public Node
+{
+    bool isSeq;
+    std::shared_ptr<Tuple> tuple;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Continue final : public Node
+{
+    std::string toString(size_t level) const override { return Strings::repeat("| ", level) + "Continue\n"; }
+};
 
 /** Expression Components **/
 
@@ -267,16 +347,6 @@ struct Pair final : public Node
 {
     std::shared_ptr<Name> name;
     std::shared_ptr<Expression> value;
-
-public:
-    std::string toString(size_t level) const override;
-
-};
-
-struct Range final : public Node
-{
-    std::shared_ptr<Expression> lower;
-    std::shared_ptr<Expression> upper;
 
 public:
     std::string toString(size_t level) const override;

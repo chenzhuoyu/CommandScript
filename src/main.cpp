@@ -39,7 +39,9 @@ Command.setHandler((name, argv, message, request) ->
     )source");
     */
 
-    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>("{ a -> (1 + 2) * 3 }"));
+    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>(R"src(
+        import sdjfjs
+    )src"));
 
     std::cout << ps.parse()->toString() << std::endl;
     return 0;

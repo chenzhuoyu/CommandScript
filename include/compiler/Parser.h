@@ -17,6 +17,11 @@ class Parser : public NonCopyable
 {
     std::shared_ptr<Tokenizer> _tk;
 
+private:
+    size_t _breakable = 0;
+    size_t _returnable = 0;
+    size_t _continuable = 0;
+
 public:
     virtual ~Parser() {}
     explicit Parser(const std::shared_ptr<Tokenizer> &tk) : _tk(tk) {}
@@ -24,6 +29,10 @@ public:
 private:
     void expect(Token::Keyword expect);
     void expect(Token::Operator expect);
+
+private:
+    bool isKeyword(Token::Keyword expected);
+    bool skipKeyword(Token::Keyword expected);
 
 private:
     bool isOperator(Token::Operator expected);
@@ -36,13 +45,29 @@ private:
 
 /** Language Structures **/
 private:
+    std::shared_ptr<AST::If         > parseIf(void);
+    std::shared_ptr<AST::For        > parseFor(void);
+    std::shared_ptr<AST::While      > parseWhile(void);
+    std::shared_ptr<AST::Define     > parseDefine(void);
+    std::shared_ptr<AST::Import     > parseImport(void);
 
 /** Statements **/
 private:
+    std::shared_ptr<AST::Sequence   > parseSequence(void);
+    std::shared_ptr<AST::Component  > parseSubSequence(void);
+
+private:
+    std::shared_ptr<AST::Tuple      > parseTupleExpression(bool &isSeq);
+
+private:
+    std::shared_ptr<AST::Compond    > parseCompond(void);
     std::shared_ptr<AST::Statement  > parseStatement(void);
 
 /** Control Flows **/
 private:
+    std::shared_ptr<AST::Break      > parseBreak(void);
+    std::shared_ptr<AST::Return     > parseReturn(void);
+    std::shared_ptr<AST::Continue   > parseContinue(void);
 
 /** Expression Components **/
 private:

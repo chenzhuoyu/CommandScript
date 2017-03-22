@@ -1,6 +1,7 @@
 #ifndef COMMANDSCRIPT_COMPILER_TOKENIZER_H
 #define COMMANDSCRIPT_COMPILER_TOKENIZER_H
 
+#include <deque>
 #include <stack>
 #include <memory>
 #include <string>
@@ -33,6 +34,7 @@ public:
     enum class Keyword : int
     {
         If,
+        Else,
         For,
         While,
         Switch,
@@ -114,9 +116,6 @@ public:
         Decorator,
     };
 
-public:
-    typedef std::shared_ptr<Token> Ptr;
-
 private:
     Type _type;
 
@@ -130,16 +129,21 @@ private:
     Operator _operator;
 
 private:
-    explicit Token(int row, int col) : _row(row), _col(col), _type(Type::Eof) {}
-    explicit Token(int row, int col, Type type, const std::string &value) : _row(row), _col(col), _type(type), _string(value) {}
+    /* tag structure to prevent public constructors being accessed by others
+     * we need to make those constructors public in order to enable `std::make_shared` */
+    struct Tag {};
 
-private:
-    explicit Token(int row, int col, double value) : _row(row), _col(col), _type(Type::Float), _float(value) {}
-    explicit Token(int row, int col, int64_t value) : _row(row), _col(col), _type(Type::Integer), _integer(value) {}
+public:
+    explicit Token(Tag, int row, int col) : _row(row), _col(col), _type(Type::Eof) {}
+    explicit Token(Tag, int row, int col, Type type, const std::string &value) : _row(row), _col(col), _type(type), _string(value) {}
 
-private:
-    explicit Token(int row, int col, Keyword value) : _row(row), _col(col), _type(Type::Keywords), _keyword(value) {}
-    explicit Token(int row, int col, Operator value) : _row(row), _col(col), _type(Type::Operators), _operator(value) {}
+public:
+    explicit Token(Tag, int row, int col, double value) : _row(row), _col(col), _type(Type::Float), _float(value) {}
+    explicit Token(Tag, int row, int col, int64_t value) : _row(row), _col(col), _type(Type::Integer), _integer(value) {}
+
+public:
+    explicit Token(Tag, int row, int col, Keyword value) : _row(row), _col(col), _type(Type::Keywords), _keyword(value) {}
+    explicit Token(Tag, int row, int col, Operator value) : _row(row), _col(col), _type(Type::Operators), _operator(value) {}
 
 public:
     int row(void) const { return _row; }
@@ -228,19 +232,29 @@ public:
     }
 
 public:
-    static inline Ptr createEof(int row, int col) { return Ptr(new Token(row, col)); }
+    static inline std::shared_ptr<Token> createEof(int row, int col) { return std::make_shared<Token>(Tag(), row, col); }
 
 public:
-    static inline Ptr createValue(int row, int col, double value) { return Ptr(new Token(row, col, value)); }
-    static inline Ptr createValue(int row, int col, int64_t value) { return Ptr(new Token(row, col, value)); }
+    static inline std::shared_ptr<Token> createValue(int row, int col, double value) { return std::make_shared<Token>(Tag(), row, col, value); }
+    static inline std::shared_ptr<Token> createValue(int row, int col, int64_t value) { return std::make_shared<Token>(Tag(), row, col, value); }
 
 public:
-    static inline Ptr createKeyword(int row, int col, Keyword value) { return Ptr(new Token(row, col, value)); }
-    static inline Ptr createOperator(int row, int col, Operator value) { return Ptr(new Token(row, col, value)); }
+    static inline std::shared_ptr<Token> createKeyword(int row, int col, Keyword value) { return std::make_shared<Token>(Tag(), row, col, value); }
+    static inline std::shared_ptr<Token> createOperator(int row, int col, Operator value) { return std::make_shared<Token>(Tag(), row, col, value); }
 
 public:
-    static inline Ptr createString(int row, int col, const std::string &value) { return Ptr(new Token(row, col, Type::String, value)); }
-    static inline Ptr createIdentifier(int row, int col, const std::string &value) { return Ptr(new Token(row, col, Type::Identifiers, value)); }
+    static inline std::shared_ptr<Token> createString(int row, int col, const std::string &value)
+    {
+        /* simply delegate to constructor */
+        return std::make_shared<Token>(Tag(), row, col, Type::String, value);
+    }
+
+public:
+    static inline std::shared_ptr<Token> createIdentifier(int row, int col, const std::string &value)
+    {
+        /* simply delegate to constructor */
+        return std::make_shared<Token>(Tag(), row, col, Type::Identifiers, value);
+    }
 
 public:
     static constexpr const char *typeName(Type value)
@@ -263,6 +277,7 @@ public:
         switch (value)
         {
             case Keyword::If        : return "if";
+            case Keyword::Else      : return "else";
             case Keyword::For       : return "for";
             case Keyword::While     : return "while";
             case Keyword::Switch    : return "switch";
@@ -357,7 +372,10 @@ class Tokenizer : public NonCopyable
         int row;
         int col;
         int pos;
-        Token::Ptr cache;
+
+    public:
+        std::deque<std::shared_ptr<Token>> cache;
+
     };
 
 private:
@@ -382,11 +400,11 @@ private:
     void skipComments(void);
 
 private:
-    Token::Ptr read(void);
-    Token::Ptr readString(void);
-    Token::Ptr readNumber(void);
-    Token::Ptr readOperator(void);
-    Token::Ptr readIdentifier(void);
+    std::shared_ptr<Token> read(void);
+    std::shared_ptr<Token> readString(void);
+    std::shared_ptr<Token> readNumber(void);
+    std::shared_ptr<Token> readOperator(void);
+    std::shared_ptr<Token> readIdentifier(void);
 
 public:
     void popState(void)
@@ -398,17 +416,31 @@ public:
 public:
     void pushState(void)
     {
-        _stack.push((const State &) _stack.top());
+        _stack.push(static_cast<const State &>(_stack.top()));
         _state = &(_stack.top());
     }
 
 public:
-    Token::Ptr next(void);
-    Token::Ptr peek(void);
+    void killState(void)
+    {
+        /* must save before pop */
+        State state = std::move(*_state);
+
+        /* discard previous state */
+        _stack.pop();
+        _stack.top() = std::move(state);
+
+        /* reset current state pointer */
+        _state = &(_stack.top());
+    }
 
 public:
-    Token::Ptr nextOrLine(void);
-    Token::Ptr peekOrLine(void);
+    std::shared_ptr<Token> next(void);
+    std::shared_ptr<Token> peek(void);
+
+public:
+    std::shared_ptr<Token> nextOrLine(void);
+    std::shared_ptr<Token> peekOrLine(void);
 
 };
 }

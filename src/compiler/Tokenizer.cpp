@@ -7,6 +7,7 @@ namespace Compiler
 {
 static const std::unordered_map<std::string, Token::Keyword> Keywords = {
     { "if"      , Token::Keyword::If        },
+    { "else"    , Token::Keyword::Else      },
     { "for"     , Token::Keyword::For       },
     { "while"   , Token::Keyword::While     },
     { "switch"  , Token::Keyword::Switch    },
@@ -100,7 +101,6 @@ Tokenizer::Tokenizer(const std::string &source) : _source(source)
         .col = 0,
         .row = 0,
         .pos = 0,
-        .cache = nullptr,
     });
 
     /* fast reference */
@@ -109,13 +109,15 @@ Tokenizer::Tokenizer(const std::string &source) : _source(source)
 
 char Tokenizer::peekChar(void)
 {
-    /* check for overflow */
-    if (_state->pos >= _source.size())
-        return 0;
+    int row = _state->row;
+    int col = _state->col;
+    int pos = _state->pos;
+    char result = nextChar();
 
-    /* peek next char */
-    char result = _source[_state->pos];
-    return result == '\r' ? (char)'\n' : result;
+    _state->row = row;
+    _state->col = col;
+    _state->pos = pos;
+    return result;
 }
 
 char Tokenizer::nextChar(void)
@@ -125,7 +127,7 @@ char Tokenizer::nextChar(void)
         return 0;
 
     /* peek next char */
-    char result = _source[_state->pos];
+    char result = _source[_state->pos++];
 
     switch (result)
     {
@@ -139,10 +141,35 @@ char Tokenizer::nextChar(void)
             _state->col = 0;
 
             /* '\r\n' or '\n\r' */
-            if (_state->pos < _source.size() && _source[_state->pos + 1] == (result == '\n' ? '\r' : '\n'))
+            if ((_state->pos < _source.size()) &&
+                (_source[_state->pos] == (result == '\n' ? '\r' : '\n')))
                 _state->pos++;
 
             result = '\n';
+            break;
+        }
+
+        /* line continuation */
+        case '\\':
+        {
+            if ((_state->pos >= _source.size()) ||
+                (_source[_state->pos] != '\r' && _source[_state->pos] != '\n'))
+                break;
+
+            _state->row++;
+            _state->pos++;
+            _state->col = 0;
+
+            /* '\r\n' or '\n\r' */
+            if (_state->pos < _source.size() &&
+                _source[_state->pos] == (result == '\n' ? '\r' : '\n'))
+                _state->pos++;
+
+            /* check for overflow */
+            if (_state->pos >= _source.size())
+                return 0;
+
+            result = _source[_state->pos++];
             break;
         }
 
@@ -151,7 +178,6 @@ char Tokenizer::nextChar(void)
     }
 
     _state->col++;
-    _state->pos++;
     return result;
 }
 
@@ -179,7 +205,7 @@ void Tokenizer::skipComments(void)
     }
 }
 
-Token::Ptr Tokenizer::read(void)
+std::shared_ptr<Token> Tokenizer::read(void)
 {
     /* skip spaces and comments */
     skipSpaces();
@@ -213,7 +239,7 @@ Token::Ptr Tokenizer::read(void)
     }
 }
 
-Token::Ptr Tokenizer::readString(void)
+std::shared_ptr<Token> Tokenizer::readString(void)
 {
     char start = nextChar();
     char remains = nextChar();
@@ -289,7 +315,7 @@ Token::Ptr Tokenizer::readString(void)
     return Token::createString(_state->row, _state->col, result);
 }
 
-Token::Ptr Tokenizer::readNumber(void)
+std::shared_ptr<Token> Tokenizer::readNumber(void)
 {
     int base = 10;
     char number = nextChar();
@@ -378,7 +404,7 @@ Token::Ptr Tokenizer::readNumber(void)
     return Token::createValue(_state->row, _state->col, decimal);
 }
 
-Token::Ptr Tokenizer::readOperator(void)
+std::shared_ptr<Token> Tokenizer::readOperator(void)
 {
     switch (char op = nextChar())
     {
@@ -512,7 +538,7 @@ Token::Ptr Tokenizer::readOperator(void)
     }
 }
 
-Token::Ptr Tokenizer::readIdentifier(void)
+std::shared_ptr<Token> Tokenizer::readIdentifier(void)
 {
     char first = nextChar();
     char follow = peekChar();
@@ -548,46 +574,81 @@ Token::Ptr Tokenizer::readIdentifier(void)
         return Token::createIdentifier(_state->row, _state->col, token);
 }
 
-Token::Ptr Tokenizer::next(void)
+std::shared_ptr<Token> Tokenizer::next(void)
 {
-    /* read from cache first */
-    Token::Ptr token = _state->cache == nullptr ? read() : std::move(_state->cache);
+    /* read next token */
+    std::shared_ptr<Token> token = nextOrLine();
 
     /* skip "\n" operator */
-    while (token != nullptr && token->is<Token::Type::Operators>() && (token->asOperator() == Token::Operator::NewLine))
-        token = read();
+    while (token->is<Token::Type::Operators>() &&
+          (token->asOperator() == Token::Operator::NewLine))
+        token = nextOrLine();
 
     return std::move(token);
 }
 
-Token::Ptr Tokenizer::peek(void)
+std::shared_ptr<Token> Tokenizer::peek(void)
 {
-    if (_state->cache == nullptr)
-        _state->cache = read();
+    std::shared_ptr<Token> token;
+    std::deque<std::shared_ptr<Token>>::const_iterator it;
+
+    /* if no tokens in cache, read directly, otherwise read from cache */
+    if (_state->cache.empty())
+    {
+        token = read();
+        _state->cache.push_back(token);
+    }
+    else
+    {
+        /* skip first iterator */
+        it = _state->cache.cbegin() + 1;
+        token = _state->cache.front();
+
+        /* skip "\n" operator, in cache */
+        while (it != _state->cache.cend() &&
+               token->is<Token::Type::Operators>() &&
+              (token->asOperator() == Token::Operator::NewLine))
+            token = *it++;
+    }
 
     /* skip "\n" operator */
-    while (_state->cache != nullptr && _state->cache->is<Token::Type::Operators>() && (_state->cache->asOperator() == Token::Operator::NewLine))
-        _state->cache = read();
+    while (token->is<Token::Type::Operators>() &&
+          (token->asOperator() == Token::Operator::NewLine))
+    {
+        token = read();
+        _state->cache.push_back(token);
+    }
 
     /* preserve cache */
-    return _state->cache;
+    return std::move(token);
 }
 
-Token::Ptr Tokenizer::nextOrLine(void)
+std::shared_ptr<Token> Tokenizer::nextOrLine(void)
 {
-    if (_state->cache == nullptr)
+    /* no tokens in cache, read directly */
+    if (_state->cache.empty())
         return read();
-    else
-        return std::move(_state->cache);
+
+    /* otherwise read from cache queue */
+    std::shared_ptr<Token> token = std::move(_state->cache.front());
+
+    /* pop from cache queue */
+    _state->cache.pop_front();
+    return std::move(token);
 }
 
-Token::Ptr Tokenizer::peekOrLine(void)
+std::shared_ptr<Token> Tokenizer::peekOrLine(void)
 {
-    if (_state->cache == nullptr)
-        _state->cache = read();
+    /* tokens cached, read from cache */
+    if (!_state->cache.empty())
+        return _state->cache.front();
 
-    /* preserve cache */
-    return _state->cache;
+    /* otherwise read direcly */
+    std::shared_ptr<Token> token = read();
+
+    /* cache the token */
+    _state->cache.push_back(token);
+    return std::move(token);
 }
 }
 }
