@@ -318,7 +318,7 @@ public:
             case Operator::Plus                 : return "+";
             case Operator::Minus                : return "-";
             case Operator::Divide               : return "/";
-            case Operator::Multiply             : return "&";
+            case Operator::Multiply             : return "*";
             case Operator::Module               : return "%";
             case Operator::Power                : return "**";
 

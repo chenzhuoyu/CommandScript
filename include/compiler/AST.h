@@ -123,6 +123,12 @@ struct Finally;
 
 struct Define final : public Node
 {
+    std::shared_ptr<Name> name;
+    std::shared_ptr<Statement> body;
+
+public:
+    std::vector<std::shared_ptr<Name>> args;
+
 public:
     std::string toString(size_t level) const override;
 
@@ -142,7 +148,13 @@ struct Sequence;
 struct Parallels;
 
 struct Compond;
-struct Statement;
+struct Statement final : public Node
+{
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 /** Control Flows **/
 
@@ -161,7 +173,7 @@ public:
 
 };
 
-struct Index : public Node
+struct Index final : public Node
 {
     std::shared_ptr<Expression> index;
 
@@ -170,7 +182,7 @@ public:
 
 };
 
-struct Invoke : public Node
+struct Invoke final : public Node
 {
     std::vector<std::shared_ptr<Expression>> args;
 
@@ -179,7 +191,7 @@ public:
 
 };
 
-struct Attribute : public Node
+struct Attribute final : public Node
 {
     std::shared_ptr<Name> attribute;
 
@@ -221,7 +233,7 @@ struct Unit final : public Node
 {
     enum class Type : int
     {
-        UnitNested,
+        UnitUnit,
         UnitComponent,
         UnitExpression,
 
@@ -236,14 +248,14 @@ public:
     Token::Operator op;
 
 public:
-    std::shared_ptr<Unit> nested;
-    std::shared_ptr<Component> component;
+    std::shared_ptr<Unit      > unit;
+    std::shared_ptr<Component > component;
     std::shared_ptr<Expression> expression;
 
 public:
-    std::shared_ptr<Map> map;
-    std::shared_ptr<List> list;
-    std::shared_ptr<Tuple> tuple;
+    std::shared_ptr<Map   > map;
+    std::shared_ptr<List  > list;
+    std::shared_ptr<Tuple > tuple;
     std::shared_ptr<Define> define;
 
 public:
@@ -301,25 +313,42 @@ struct Component final : public Node
         ComponentPair,
         ComponentUnit,
         ComponentConstant,
+    };
 
-        ComponentIndex,
-        ComponentInvoke,
-        ComponentAttribute,
+public:
+    enum class ModType : int
+    {
+        ModifierIndex,
+        ModifierInvoke,
+        ModifierAttribute,
+    };
+
+public:
+    struct Modifier
+    {
+        ModType type;
+        std::shared_ptr<Index    > index;
+        std::shared_ptr<Invoke   > invoke;
+        std::shared_ptr<Attribute> attribute;
+
+    public:
+        Modifier(const std::shared_ptr<Index    > &value) : type(ModType::ModifierIndex    ), index    (value) {}
+        Modifier(const std::shared_ptr<Invoke   > &value) : type(ModType::ModifierInvoke   ), invoke   (value) {}
+        Modifier(const std::shared_ptr<Attribute> &value) : type(ModType::ModifierAttribute), attribute(value) {}
+
     };
 
 public:
     Type type;
 
 public:
-    std::shared_ptr<Name> name;
-    std::shared_ptr<Pair> pair;
-    std::shared_ptr<Unit> unit;
+    std::shared_ptr<Name    > name;
+    std::shared_ptr<Pair    > pair;
+    std::shared_ptr<Unit    > unit;
     std::shared_ptr<Constant> constant;
 
 public:
-    std::shared_ptr<Index> index;
-    std::shared_ptr<Invoke> invoke;
-    std::shared_ptr<Attribute> attribute;
+    std::vector<Modifier> modifiers;
 
 public:
     std::string toString(size_t level) const override;
@@ -328,14 +357,27 @@ public:
 
 struct Expression final : public Node
 {
-    struct Side
+    enum class Type : int
     {
-        bool isComponent = false;
-        std::shared_ptr<Node> node = nullptr;
+        ExpressionComponent,
+        ExpressionExpression,
     };
 
 public:
-    struct Level
+    struct Side
+    {
+        Type type;
+        std::shared_ptr<Component > component;
+        std::shared_ptr<Expression> expression;
+
+    public:
+        Side(const std::shared_ptr<Component > &value) : type(Type::ExpressionComponent ), component (value) {}
+        Side(const std::shared_ptr<Expression> &value) : type(Type::ExpressionExpression), expression(value) {}
+
+    };
+
+public:
+    struct Priority
     {
         enum
         {
@@ -352,9 +394,11 @@ public:
     };
 
 public:
-    Side left;
-    Side right;
     Token::Operator op;
+
+public:
+    std::shared_ptr<Side> left;
+    std::shared_ptr<Side> right;
 
 public:
     std::string toString(size_t level) const override;
