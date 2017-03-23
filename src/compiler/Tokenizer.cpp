@@ -10,9 +10,6 @@ static const std::unordered_map<std::string, Token::Keyword> Keywords = {
     { "else"    , Token::Keyword::Else      },
     { "for"     , Token::Keyword::For       },
     { "while"   , Token::Keyword::While     },
-    { "switch"  , Token::Keyword::Switch    },
-    { "case"    , Token::Keyword::Case      },
-    { "default" , Token::Keyword::Default   },
 
     { "break"   , Token::Keyword::Break     },
     { "continue", Token::Keyword::Continue  },
@@ -102,7 +99,7 @@ Tokenizer::Tokenizer(const std::string &source) : _source(source)
     /* initial state */
     _stack.push(State {
         .col = 0,
-        .row = 0,
+        .row = 1,
         .pos = 0,
     });
 

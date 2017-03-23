@@ -37,9 +37,6 @@ public:
         Else,
         For,
         While,
-        Switch,
-        Case,
-        Default,
 
         Break,
         Continue,
@@ -283,9 +280,6 @@ public:
             case Keyword::Else      : return "else";
             case Keyword::For       : return "for";
             case Keyword::While     : return "while";
-            case Keyword::Switch    : return "switch";
-            case Keyword::Case      : return "case";
-            case Keyword::Default   : return "default";
 
             case Keyword::Break     : return "break";
             case Keyword::Continue  : return "continue";

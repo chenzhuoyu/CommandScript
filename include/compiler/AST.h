@@ -56,10 +56,6 @@ struct While;
 struct Define;
 struct Import;
 
-struct Switch;
-struct Case;
-struct Default;
-
 struct Try;
 struct Except;
 struct Finally;
@@ -77,6 +73,7 @@ struct Statement;
 /** Control Flows **/
 
 struct Break;
+struct Raise;
 struct Return;
 struct Continue;
 
@@ -159,19 +156,42 @@ public:
 
 };
 
-struct Switch;
-struct Case;
-struct Default;
-
 struct Try;
 struct Except;
 struct Finally;
 
 /** Statements **/
 
-struct Assign;
-struct Delete;
-struct Inplace;
+struct Assign final : public Node
+{
+    bool isSeq;
+    std::shared_ptr<Tuple> tuple;
+    std::shared_ptr<Sequence> target;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Delete final : public Node
+{
+    std::shared_ptr<Component> target;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Inplace final : public Node
+{
+    Token::Operator op;
+    std::shared_ptr<Component> target;
+    std::shared_ptr<Expression> expression;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 struct Sequence final : public Node
 {
@@ -214,6 +234,70 @@ public:
 
 struct Statement final : public Node
 {
+    enum class Type : int
+    {
+        StatementIf,
+        StatementFor,
+/*      StatementTry,       */
+        StatementWhile,
+        StatementCompond,
+
+        StatementDefine,
+        StatementDelete,
+        StatementImport,
+
+        StatementBreak,
+/*      StatementRaise,     */
+        StatementReturn,
+        StatementContinue,
+
+        StatementAssign,
+        StatementInplace,
+        StatementComponent,
+    };
+
+public:
+    Type type;
+
+public:
+    std::shared_ptr<If       > ifStatement;
+    std::shared_ptr<For      > forStatement;
+/*  std::shared_ptr<For      > tryStatement;     */
+    std::shared_ptr<While    > whileStatement;
+    std::shared_ptr<Compond  > compondStatement;
+
+public:
+    std::shared_ptr<Define   > defineStatement;
+    std::shared_ptr<Delete   > deleteStatement;
+    std::shared_ptr<Import   > importStatement;
+
+public:
+    std::shared_ptr<Break    > breakStatement;
+/*  std::shared_ptr<Raise    > raiseStatement;   */
+    std::shared_ptr<Return   > returnStatement;
+    std::shared_ptr<Continue > continueStatement;
+
+public:
+    std::shared_ptr<Assign   > assignStatement;
+    std::shared_ptr<Inplace  > inplaceStatement;
+    std::shared_ptr<Component> componentStatement;
+
+public:
+    void setStatement(const std::shared_ptr<If      > &value) { type = Type::StatementIf      ; ifStatement       = value; }
+    void setStatement(const std::shared_ptr<For     > &value) { type = Type::StatementFor     ; forStatement      = value; }
+/*  void setStatement(const std::shared_ptr<Try     > &value) { type = Type::StatementTry     ; tryStatement      = value; }    */
+    void setStatement(const std::shared_ptr<While   > &value) { type = Type::StatementWhile   ; whileStatement    = value; }
+
+public:
+    void setStatement(const std::shared_ptr<Define  > &value) { type = Type::StatementDefine  ; defineStatement   = value; }
+    void setStatement(const std::shared_ptr<Delete  > &value) { type = Type::StatementDelete  ; deleteStatement   = value; }
+    void setStatement(const std::shared_ptr<Import  > &value) { type = Type::StatementImport  ; importStatement   = value; }
+
+public:
+    void setStatement(const std::shared_ptr<Break   > &value) { type = Type::StatementBreak   ; breakStatement    = value; }
+/*  void setStatement(const std::shared_ptr<Raise   > &value) { type = Type::StatementRaise   ; raiseStatement    = value; }    */
+    void setStatement(const std::shared_ptr<Return  > &value) { type = Type::StatementReturn  ; returnStatement   = value; }
+    void setStatement(const std::shared_ptr<Continue> &value) { type = Type::StatementContinue; continueStatement = value; }
 
 public:
     std::string toString(size_t level) const override;
@@ -226,6 +310,8 @@ struct Break final : public Node
 {
     std::string toString(size_t level) const override { return Strings::repeat("| ", level) + "Break\n"; }
 };
+
+struct Raise;
 
 struct Return final : public Node
 {
@@ -402,6 +488,7 @@ public:
 
 public:
     Type type;
+    bool isStandalone = false;
 
 public:
     std::shared_ptr<Name    > name;

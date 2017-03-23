@@ -45,62 +45,67 @@ private:
 
 /** Language Structures **/
 private:
-    std::shared_ptr<AST::If         > parseIf(void);
-    std::shared_ptr<AST::For        > parseFor(void);
-    std::shared_ptr<AST::While      > parseWhile(void);
-    std::shared_ptr<AST::Define     > parseDefine(void);
-    std::shared_ptr<AST::Import     > parseImport(void);
+    std::shared_ptr<AST::If         > parseIf               (void);
+    std::shared_ptr<AST::For        > parseFor              (void);
+/*  std::shared_ptr<AST::Try        > parseTry              (void); */
+    std::shared_ptr<AST::While      > parseWhile            (void);
+    std::shared_ptr<AST::Define     > parseDefine           (void);
+    std::shared_ptr<AST::Import     > parseImport           (void);
 
 /** Statements **/
 private:
-    std::shared_ptr<AST::Sequence   > parseSequence(void);
-    std::shared_ptr<AST::Component  > parseSubSequence(void);
+    std::shared_ptr<AST::Tuple      > parseTupleExpression  (bool &isSeq);
+    std::shared_ptr<AST::Component  > parseMutableComponent (void);
+
+public:
+    std::shared_ptr<AST::Assign     > parseAssign           (bool &isRewindable);
+    std::shared_ptr<AST::Inplace    > parseInplace          (bool &isRewindable);
 
 private:
-    std::shared_ptr<AST::Tuple      > parseTupleExpression(bool &isSeq);
+    std::shared_ptr<AST::Delete     > parseDelete           (void);
+    std::shared_ptr<AST::Sequence   > parseSequence         (void);
 
 private:
-    std::shared_ptr<AST::Compond    > parseCompond(void);
-    std::shared_ptr<AST::Statement  > parseStatement(void);
+    std::shared_ptr<AST::Compond    > parseCompond          (void);
+    std::shared_ptr<AST::Statement  > parseStatement        (void);
 
 /** Control Flows **/
 private:
-    std::shared_ptr<AST::Break      > parseBreak(void);
-    std::shared_ptr<AST::Return     > parseReturn(void);
-    std::shared_ptr<AST::Continue   > parseContinue(void);
+    std::shared_ptr<AST::Break      > parseBreak            (void);
+/*  std::shared_ptr<AST::Raise      > parseRaise            (void); */
+    std::shared_ptr<AST::Return     > parseReturn           (void);
+    std::shared_ptr<AST::Continue   > parseContinue         (void);
 
 /** Expression Components **/
 private:
-    std::shared_ptr<AST::Name       > parseName(void);
-    std::shared_ptr<AST::Index      > parseIndex(void);
-    std::shared_ptr<AST::Invoke     > parseInvoke(void);
-    std::shared_ptr<AST::Attribute  > parseAttribute(void);
+    std::shared_ptr<AST::Name       > parseName             (void);
+    std::shared_ptr<AST::Index      > parseIndex            (void);
+    std::shared_ptr<AST::Invoke     > parseInvoke           (void);
+    std::shared_ptr<AST::Attribute  > parseAttribute        (void);
 
 /** Expressions **/
 private:
-    std::shared_ptr<AST::Map        > parseMap(void);
-    std::shared_ptr<AST::List       > parseList(void);
+    std::shared_ptr<AST::Map        > parseMap              (void);
+    std::shared_ptr<AST::List       > parseList             (void);
+    std::shared_ptr<AST::Unit       > parseUnit             (void);
+    std::shared_ptr<AST::Constant   > parseConstant         (void);
+    std::shared_ptr<AST::Component  > parseComponent        (void);
+    std::shared_ptr<AST::Expression > parseExpression       (void) { return parseBoolOr(); }
 
+/** Operator Precedence Parsers, from highest precedence (Power) to lowest precedence (BoolOr) **/
 private:
-    std::shared_ptr<AST::Unit       > parseUnit(void);
-    std::shared_ptr<AST::Constant   > parseConstant(void);
-    std::shared_ptr<AST::Component  > parseComponent(void);
-    std::shared_ptr<AST::Expression > parseExpression(void) { return parseBoolOr(); }
-
-/** Operator Precedence Parsers, from highest precedence to lowest precedence **/
-private:
-    std::shared_ptr<AST::Expression > parsePower        (void);
-    std::shared_ptr<AST::Expression > parseUnary        (void);
-    std::shared_ptr<AST::Expression > parseFactor       (void);
-    std::shared_ptr<AST::Expression > parseTerm         (void);
-    std::shared_ptr<AST::Expression > parseBitShift     (void);
-    std::shared_ptr<AST::Expression > parseBitAnd       (void);
-    std::shared_ptr<AST::Expression > parseBitXor       (void);
-    std::shared_ptr<AST::Expression > parseBitOr        (void);
-    std::shared_ptr<AST::Expression > parseRelations    (void);
-    std::shared_ptr<AST::Expression > parseBoolNot      (void);
-    std::shared_ptr<AST::Expression > parseBoolAnd      (void);
-    std::shared_ptr<AST::Expression > parseBoolOr       (void);
+    std::shared_ptr<AST::Expression > parsePower            (void);
+    std::shared_ptr<AST::Expression > parseUnary            (void);
+    std::shared_ptr<AST::Expression > parseFactor           (void);
+    std::shared_ptr<AST::Expression > parseTerm             (void);
+    std::shared_ptr<AST::Expression > parseBitShift         (void);
+    std::shared_ptr<AST::Expression > parseBitAnd           (void);
+    std::shared_ptr<AST::Expression > parseBitXor           (void);
+    std::shared_ptr<AST::Expression > parseBitOr            (void);
+    std::shared_ptr<AST::Expression > parseRelations        (void);
+    std::shared_ptr<AST::Expression > parseBoolNot          (void);
+    std::shared_ptr<AST::Expression > parseBoolAnd          (void);
+    std::shared_ptr<AST::Expression > parseBoolOr           (void);
 
 /** parser wrapper method **/
 public:

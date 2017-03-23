@@ -1,11 +1,11 @@
 #include <iostream>
 #include "Parser.h"
 #include "Tokenizer.h"
+#include "SyntaxError.h"
 
 int main()
 {
-    /*
-    CommandScript::Compiler::Tokenizer tk(R"source(
+    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>(R"source(
 
 import file
 import logging
@@ -36,13 +36,15 @@ Command.setHandler((name, argv, message, request) ->
     }
 })
 
-    )source");
-    */
+    )source"));
 
-    CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>(R"src(
-        10 < ~x in (20, 30, 40)
-    )src"));
+//    try
+//    {
+        std::cout << ps.parse()->toString() << std::endl;
+//    } catch (const CommandScript::Exception::SyntaxError &e)
+//    {
+//        std::cerr << "row(" << e.row() << "), col(" << e.col() << "): " << e.message() << std::endl;
+//    }
 
-    std::cout << ps.parse()->toString() << std::endl;
     return 0;
 }

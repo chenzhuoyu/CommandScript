@@ -71,6 +71,26 @@ std::string Import::toString(size_t level) const
 
 /** Statements **/
 
+std::string Assign::toString(size_t level) const
+{
+    return Strings::repeat("| ", level) + "Assign\n"
+         + Strings::repeat("| ", level + 1) + "Target\n" + target->toString(level + 2)
+         + Strings::repeat("| ", level + 1) + (isSeq ? "Sequence\n" : "Expression\n") + tuple->toString(level + 2);
+}
+
+std::string Delete::toString(size_t level) const
+{
+    return Strings::repeat("| ", level) + "Delete\n"
+         + target->toString(level + 1);
+}
+
+std::string Inplace::toString(size_t level) const
+{
+    return Strings::repeat("| ", level) + Strings::format("Inplace %s\n", Token::operatorName(op))
+         + Strings::repeat("| ", level + 1) + "Target\n" + target->toString(level + 2)
+         + Strings::repeat("| ", level + 1) + "Expression\n" + expression->toString(level + 2);
+}
+
 std::string Sequence::toString(size_t level) const
 {
     std::string result = Strings::repeat("| ", level) + Strings::format("Sequence %d\n", items.size());
@@ -104,7 +124,27 @@ std::string Compond::toString(size_t level) const
 
 std::string Statement::toString(size_t level) const
 {
-    return "";
+    switch (type)
+    {
+        case Type::StatementIf        : return ifStatement->toString(level);
+        case Type::StatementFor       : return forStatement->toString(level);
+/*      case Type::StatementTry       : return tryStatement->toString(level);    */
+        case Type::StatementWhile     : return whileStatement->toString(level);
+        case Type::StatementCompond   : return compondStatement->toString(level);
+
+        case Type::StatementDefine    : return defineStatement->toString(level);
+        case Type::StatementDelete    : return deleteStatement->toString(level);
+        case Type::StatementImport    : return importStatement->toString(level);
+
+        case Type::StatementBreak     : return breakStatement->toString(level);
+/*      case Type::StatementRaise     : return raiseStatement->toString(level);  */
+        case Type::StatementReturn    : return returnStatement->toString(level);
+        case Type::StatementContinue  : return continueStatement->toString(level);
+
+        case Type::StatementAssign    : return assignStatement->toString(level);
+        case Type::StatementInplace   : return inplaceStatement->toString(level);
+        case Type::StatementComponent : return componentStatement->toString(level);
+    }
 }
 
 /** Control Flows **/
