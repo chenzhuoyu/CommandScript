@@ -47,10 +47,13 @@ private:
 private:
     std::shared_ptr<AST::If         > parseIf               (void);
     std::shared_ptr<AST::For        > parseFor              (void);
-/*  std::shared_ptr<AST::Try        > parseTry              (void); */
     std::shared_ptr<AST::While      > parseWhile            (void);
     std::shared_ptr<AST::Define     > parseDefine           (void);
     std::shared_ptr<AST::Import     > parseImport           (void);
+
+private:
+    std::shared_ptr<AST::Try        > parseTry              (void);
+    std::shared_ptr<AST::Except     > parseExcept           (void);
 
 /** Statements **/
 private:
@@ -72,7 +75,7 @@ private:
 /** Control Flows **/
 private:
     std::shared_ptr<AST::Break      > parseBreak            (void);
-/*  std::shared_ptr<AST::Raise      > parseRaise            (void); */
+    std::shared_ptr<AST::Raise      > parseRaise            (void);
     std::shared_ptr<AST::Return     > parseReturn           (void);
     std::shared_ptr<AST::Continue   > parseContinue         (void);
 

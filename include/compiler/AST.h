@@ -58,7 +58,6 @@ struct Import;
 
 struct Try;
 struct Except;
-struct Finally;
 
 /** Statements **/
 
@@ -156,9 +155,29 @@ public:
 
 };
 
-struct Try;
-struct Except;
-struct Finally;
+struct Try final : public Node
+{
+    bool haveWildcard = false;
+    std::shared_ptr<Statement> body;
+    std::shared_ptr<Statement> finally;
+    std::vector<std::shared_ptr<Except>> excepts;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
+
+struct Except final : public Node
+{
+    bool isWildcard;
+    std::shared_ptr<Statement> body;
+    std::shared_ptr<Component> target;
+    std::vector<std::vector<std::shared_ptr<Name>>> exceptions;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 /** Statements **/
 
@@ -238,7 +257,7 @@ struct Statement final : public Node
     {
         StatementIf,
         StatementFor,
-/*      StatementTry,       */
+        StatementTry,
         StatementWhile,
         StatementCompond,
 
@@ -247,7 +266,7 @@ struct Statement final : public Node
         StatementImport,
 
         StatementBreak,
-/*      StatementRaise,     */
+        StatementRaise,
         StatementReturn,
         StatementContinue,
 
@@ -262,7 +281,7 @@ public:
 public:
     std::shared_ptr<If       > ifStatement;
     std::shared_ptr<For      > forStatement;
-/*  std::shared_ptr<For      > tryStatement;     */
+    std::shared_ptr<Try      > tryStatement;
     std::shared_ptr<While    > whileStatement;
     std::shared_ptr<Compond  > compondStatement;
 
@@ -273,7 +292,7 @@ public:
 
 public:
     std::shared_ptr<Break    > breakStatement;
-/*  std::shared_ptr<Raise    > raiseStatement;   */
+    std::shared_ptr<Raise    > raiseStatement;
     std::shared_ptr<Return   > returnStatement;
     std::shared_ptr<Continue > continueStatement;
 
@@ -285,7 +304,7 @@ public:
 public:
     void setStatement(const std::shared_ptr<If      > &value) { type = Type::StatementIf      ; ifStatement       = value; }
     void setStatement(const std::shared_ptr<For     > &value) { type = Type::StatementFor     ; forStatement      = value; }
-/*  void setStatement(const std::shared_ptr<Try     > &value) { type = Type::StatementTry     ; tryStatement      = value; }    */
+    void setStatement(const std::shared_ptr<Try     > &value) { type = Type::StatementTry     ; tryStatement      = value; }
     void setStatement(const std::shared_ptr<While   > &value) { type = Type::StatementWhile   ; whileStatement    = value; }
 
 public:
@@ -295,7 +314,7 @@ public:
 
 public:
     void setStatement(const std::shared_ptr<Break   > &value) { type = Type::StatementBreak   ; breakStatement    = value; }
-/*  void setStatement(const std::shared_ptr<Raise   > &value) { type = Type::StatementRaise   ; raiseStatement    = value; }    */
+    void setStatement(const std::shared_ptr<Raise   > &value) { type = Type::StatementRaise   ; raiseStatement    = value; }
     void setStatement(const std::shared_ptr<Return  > &value) { type = Type::StatementReturn  ; returnStatement   = value; }
     void setStatement(const std::shared_ptr<Continue> &value) { type = Type::StatementContinue; continueStatement = value; }
 
@@ -311,7 +330,14 @@ struct Break final : public Node
     std::string toString(size_t level) const override { return Strings::repeat("| ", level) + "Break\n"; }
 };
 
-struct Raise;
+struct Raise final : public Node
+{
+    std::shared_ptr<Expression> expr;
+
+public:
+    std::string toString(size_t level) const override;
+
+};
 
 struct Return final : public Node
 {

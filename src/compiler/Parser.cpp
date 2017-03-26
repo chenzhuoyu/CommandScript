@@ -203,6 +203,85 @@ std::shared_ptr<AST::Import> Parser::parseImport(void)
     return result;
 }
 
+std::shared_ptr<AST::Try> Parser::parseTry(void)
+{
+    expect(Token::Keyword::Try);
+    std::shared_ptr<AST::Try> result = AST::Node::create<AST::Try>(_tk);
+
+    result->body = parseStatement();
+    result->haveWildcard = false;
+
+    /* except section */
+    while (isKeyword(Token::Keyword::Except))
+    {
+        /* parse except block */
+        std::shared_ptr<AST::Except> except = parseExcept();
+
+        /* can only have at most 1 wildcard capture */
+        if (result->haveWildcard)
+        {
+            /* wildcard capture must be the last capture block */
+            if (!except->isWildcard)
+                throw Exception::SyntaxError(_tk->row(), _tk->col(), "Wildcard \"except\" block must be the last \"except\" block");
+            else
+                throw Exception::SyntaxError(_tk->row(), _tk->col(), "\"try\" block can only have at most 1 wildcard \"except\" block");
+        }
+
+        /* add to except block list */
+        result->haveWildcard = except->isWildcard;
+        result->excepts.push_back(std::move(except));
+    }
+
+    /* finally section */
+    if (skipKeyword(Token::Keyword::Finally))
+        result->finally = parseStatement();
+
+    /* a valid "try" statement could not be a naked "try" section */
+    if (result->excepts.empty() && result->finally == nullptr)
+        throw Exception::SyntaxError(_tk->row(), _tk->col(), "\"try\" block without any \"except\" or \"finally\"");
+
+    return result;
+}
+
+std::shared_ptr<AST::Except> Parser::parseExcept(void)
+{
+    expect(Token::Keyword::Except);
+    std::shared_ptr<AST::Except> result = AST::Node::create<AST::Except>(_tk);
+    std::vector<std::shared_ptr<AST::Name>> names;
+
+    /* "except" descriptors are surrounded by "()"*/
+    expect(Token::Operator::BracketLeft);
+
+    if (skipOperator(Token::Operator::Multiply))
+    {
+        /* catch all exceptions */
+        result->isWildcard = true;
+    }
+    else
+    {
+        do
+        {
+            /* parse each name */
+            do names.push_back(parseName());
+            while (skipOperator(Token::Operator::Point));
+
+            /* add to exception type list */
+            result->isWildcard = false;
+            result->exceptions.push_back(std::move(names));
+
+        } while (skipOperator(Token::Operator::BitOr));
+    }
+
+    /* exception storage target */
+    if (skipOperator(Token::Operator::Pointer))
+        result->target = parseMutableComponent();
+
+    /* exception handler body */
+    expect(Token::Operator::BracketRight);
+    result->body = parseStatement();
+    return result;
+}
+
 /** Statements **/
 
 std::shared_ptr<AST::Tuple> Parser::parseTupleExpression(bool &isSeq)
@@ -489,11 +568,11 @@ std::shared_ptr<AST::Statement> Parser::parseStatement(void)
             {
                 case Token::Keyword::If       : result->setStatement(parseIf        ()); break;
                 case Token::Keyword::For      : result->setStatement(parseFor       ()); break;
-/*              case Token::Keyword::Try      : result->setStatement(parseTry       ()); break; */
+                case Token::Keyword::Try      : result->setStatement(parseTry       ()); break;
                 case Token::Keyword::While    : result->setStatement(parseWhile     ()); break;
 
                 case Token::Keyword::Break    : result->setStatement(parseBreak     ()); break;
-/*              case Token::Keyword::Raise    : result->setStatement(parseRaise     ()); break; */
+                case Token::Keyword::Raise    : result->setStatement(parseRaise     ()); break;
                 case Token::Keyword::Return   : result->setStatement(parseReturn    ()); break;
                 case Token::Keyword::Continue : result->setStatement(parseContinue  ()); break;
 
@@ -539,6 +618,15 @@ std::shared_ptr<AST::Break> Parser::parseBreak(void)
 {
     expect(Token::Keyword::Break);
     return AST::Node::create<AST::Break>(_tk);
+}
+
+std::shared_ptr<AST::Raise> Parser::parseRaise(void)
+{
+    expect(Token::Keyword::Raise);
+    std::shared_ptr<AST::Raise> result = AST::Node::create<AST::Raise>(_tk);
+
+    result->expr = parseExpression();
+    return result;
 }
 
 std::shared_ptr<AST::Return> Parser::parseReturn(void)

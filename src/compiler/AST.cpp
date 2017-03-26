@@ -69,6 +69,52 @@ std::string Import::toString(size_t level) const
     return result;
 }
 
+std::string Try::toString(size_t level) const
+{
+    std::string result = Strings::repeat("| ", level) + (finally == nullptr
+        ? Strings::format("Try %d%s\n", excepts.size(), haveWildcard ? " + Wildcard" : "")
+        : Strings::format("Try-Finally %d%s\n", excepts.size(), haveWildcard ? " + Wildcard" : ""));
+
+    for (const auto &except : excepts)
+        result += except->toString(level + 1);
+
+    if (finally != nullptr)
+    {
+        result += Strings::repeat("| ", level + 1);
+        result += "Finally\n";
+        result += finally->toString(level + 2);
+    }
+
+    return result;
+}
+
+std::string Except::toString(size_t level) const
+{
+    std::string result = Strings::repeat("| ", level)
+        + Strings::format(isWildcard ? "Except Wildcard %d\n" : "Except %d\n", exceptions.size());
+
+    if (target != nullptr)
+    {
+        result += Strings::repeat("| ", level + 1);
+        result += "Target\n";
+        result += target->toString(level + 2);
+    }
+
+    for (const auto &except : exceptions)
+    {
+        result += Strings::repeat("| ", level + 1);
+        result += "Exception Item\n";
+
+        for (const auto &name : except)
+            result += name->toString(level + 2);
+    }
+
+    result += Strings::repeat("| ", level + 1);
+    result += "Body\n";
+    result += body->toString(level + 2);
+    return result;
+}
+
 /** Statements **/
 
 std::string Assign::toString(size_t level) const
@@ -128,7 +174,7 @@ std::string Statement::toString(size_t level) const
     {
         case Type::StatementIf        : return ifStatement->toString(level);
         case Type::StatementFor       : return forStatement->toString(level);
-/*      case Type::StatementTry       : return tryStatement->toString(level);    */
+        case Type::StatementTry       : return tryStatement->toString(level);
         case Type::StatementWhile     : return whileStatement->toString(level);
         case Type::StatementCompond   : return compondStatement->toString(level);
 
@@ -137,7 +183,7 @@ std::string Statement::toString(size_t level) const
         case Type::StatementImport    : return importStatement->toString(level);
 
         case Type::StatementBreak     : return breakStatement->toString(level);
-/*      case Type::StatementRaise     : return raiseStatement->toString(level);  */
+        case Type::StatementRaise     : return raiseStatement->toString(level);
         case Type::StatementReturn    : return returnStatement->toString(level);
         case Type::StatementContinue  : return continueStatement->toString(level);
 
@@ -148,6 +194,12 @@ std::string Statement::toString(size_t level) const
 }
 
 /** Control Flows **/
+
+std::string Raise::toString(size_t level) const
+{
+    return Strings::repeat("| ", level) + "Raise\n"
+         + expr->toString(level + 1);
+}
 
 std::string Return::toString(size_t level) const
 {

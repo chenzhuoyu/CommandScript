@@ -7,35 +7,42 @@ int main()
 {
     CommandScript::Compiler::Parser ps(std::make_shared<CommandScript::Compiler::Tokenizer>(R"source(
 
-import file
-import logging
-
-Command.setHandler((name, argv, message, request) ->
-{
-    req = {
-        stRequest       -> (0, request),
-        sUserQuestion   -> (1, message.split('#')[0]),
-        sProposedAnswer -> (2, message.split('#')[1]),
-    };
-
-    resp = {
-        eCode    -> (0, 0),
-        sMessage -> (1, ''),
-    }
-
-    result = Command.RPC('SmartAssistant.DobbyChatServer.DobbyChatServantObj').submitChatTraining(req, resp)
-
-    if (result == 0)
-        logging.debug('result is %d, %s' % (result, repr(resp)))
-    else
-        logging.error('result is %d, %s' % (result, repr(resp)))
-
-    return {
-        code -> result,
-        message -> resp.sMessage,
-    }
-})
-
+#import file
+#import logging
+#
+#Command.setHandler((name, argv, message, request) ->
+#{
+#    req = {
+#        stRequest       -> (0, request),
+#        sUserQuestion   -> (1, message.split('#')[0]),
+#        sProposedAnswer -> (2, message.split('#')[1]),
+#    };
+#
+#    resp = {
+#        eCode    -> (0, 0),
+#        sMessage -> (1, ''),
+#    }
+#
+#    result = Command.RPC('SmartAssistant.DobbyChatServer.DobbyChatServantObj').submitChatTraining(req, resp)
+#
+#    if (result == 0)
+#        logging.debug('result is %d, %s' % (result, repr(resp)))
+#    else
+#        logging.error('result is %d, %s' % (result, repr(resp)))
+#
+#    return {
+#        code -> result,
+#        message -> resp.sMessage,
+#    }
+#})
+try
+    a = 1
+except (X.Y.Z | A.B.C -> e)
+    print(e)
+except (* -> e)
+    print('fuck', e)
+finally
+    shit()
     )source"));
 
 //    try
